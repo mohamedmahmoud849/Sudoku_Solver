@@ -1,0 +1,180 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+namespace Sudoku_Solver
+{
+    public class Parallel
+    {
+        List<Task<int>> task_list = new List<Task<int>>();
+
+        int length;
+        char EMPTY_ENTRY = '*';
+        public Parallel(int length)
+        {
+            this.length = length;
+        }
+
+        public void solveSudoku(char[,] board, int row,int col)
+        {
+            List<char> probabilities = getCellProbabilities(0,0,board);
+            List<char[,]> list = prepareBoards(probabilities, board, 0, 0);
+             
+
+            for (int i = 0; i < 4; i++)
+            {
+                char[,] list_board = list[i];
+                int index = i;
+                var t = new Task<int>(() => {
+                    canSolveSudokuFromCell(0, 0, list_board);
+                    int i = index;
+                    return i;
+                });
+                task_list.Add(t);
+                t.Start();
+            }
+
+            
+            
+            Task<int>[] task_arr = new Task<int>[task_list.Count];
+            
+            for (int  i = 0; i < task_list.Count; i++)
+            {
+                task_arr[i] = task_list[i];
+            }
+
+            task_list = null;
+
+            int index_of_com_task = Task.WaitAny(task_arr);
+
+            printBoard(list[task_arr[index_of_com_task].Result]);
+
+
+
+
+        }
+
+
+
+
+
+        private bool canSolveSudokuFromCell(int row, int col, char[,] board)
+        {
+            if (col == length)
+            {
+                col = 0;
+                row++;
+
+                if (row == length)
+                {
+                    return true;
+                }
+            }
+
+            // Skip entries already filled out. They already have a value in them.
+            if (board[row, col] != EMPTY_ENTRY)
+            {
+                return canSolveSudokuFromCell(row, col + 1, board);
+            }
+
+            for (int value = 1; value <= length; value++)
+            {
+                char charToPlace = (char)(value + '0');
+
+                if (canPlaceValue(board, row, col, charToPlace))
+                {
+                    board[row, col] = charToPlace;
+                    if (canSolveSudokuFromCell(row, col + 1, board))
+                    {
+                        return true;
+                    }
+                    board[row, col] = EMPTY_ENTRY;
+                }
+            }
+
+            return false;
+        }
+
+        private bool canPlaceValue(char[,] board, int row, int col, char charToPlace)
+        {
+            // Check column of the placement
+            for (int i = 0; i < length; i++)
+            {
+                if (charToPlace == board[i, col])
+                {
+                    return false;
+                }
+            }
+
+
+            // Check row of the placement
+            for (int i = 0; i < length; i++)
+            {
+                if (charToPlace == board[row, i])
+                {
+                    return false;
+                }
+            }
+
+            // Check region constraints - get the size of the sub-box
+            int regionSize = (int)Math.Sqrt(length);
+
+            int verticalBoxIndex = row / regionSize;
+            int horizontalBoxIndex = col / regionSize;
+
+            int topLeftOfSubBoxRow = regionSize * verticalBoxIndex; //3*0=0
+            int topLeftOfSubBoxCol = regionSize * horizontalBoxIndex;//3*1=3
+
+            for (int i = 0; i < regionSize; i++)
+            {
+                for (int j = 0; j < regionSize; j++)
+                {
+                    if (charToPlace == board[topLeftOfSubBoxRow + i, topLeftOfSubBoxCol + j])
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        private List<char[,]> prepareBoards(List<char> probabilitis, char[,] board, int row, int col)
+        {
+
+            List<char[,]> list = new List<char[,]>();
+
+            for (int i = 0; i < probabilitis.Count; i++)
+            {
+                var new_board = board.Clone() as char[,];
+                new_board[row, col] = probabilitis[i];
+                list.Add(new_board);
+            }
+            return list;
+        }
+
+        public List<char> getCellProbabilities(int row, int col, char[,] board)
+        {
+            List<char> prob = new List<char>();
+            for (int value = 1; value <= 9; value++)
+            {
+                char charToPlace = (char)(value + '0');
+                if (canPlaceValue(board, row, col, charToPlace))
+                    prob.Add(charToPlace);  
+            }
+            return prob;
+        }
+
+        public void printBoard(char[,] b)
+        {
+            int length = (int)Math.Sqrt(b.Length);
+            for (int i = 0; i < length; i++)
+            {
+                for (int j = 0; j < length; j++)
+                    Console.Write(b[i, j] + " ");
+                Console.WriteLine();
+            }
+
+        }
+    }
+}
